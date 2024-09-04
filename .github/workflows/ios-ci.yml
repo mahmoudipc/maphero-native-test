@@ -128,7 +128,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: maphero-build
-          path: bazel-bin/platform/ios/  # Adjust to point to the correct build output location
+          path: bazel-bin/platform/ios/  # Adjust  to point to the correct build output location
 
       - name: Zip dSYM Files
         run: |
