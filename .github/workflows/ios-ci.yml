@@ -79,15 +79,15 @@ jobs:
 
           # apply provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles          
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
       - name: Build iOS App
         run: |
-          bazel build //platform/ios:App
+          bazel build --verbose_failures //platform/ios:App
 
       - name: Build MapHeroApp Swift
         run: |
-          bazel build //platform/ios/app-swift:MapHeroApp
+          bazel build --verbose_failures //platform/ios/app-swift:MapHeroApp
 
       - name: Build MapHero dynamic framework with optimization
         run: |
