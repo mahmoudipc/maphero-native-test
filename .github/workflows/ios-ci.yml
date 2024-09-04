@@ -3,7 +3,7 @@ name: ios-ci
 on:
   push:
     branches:
-      - main  # Trigger the workflow on any push to the main branch
+      - main
 
 jobs:
   build-and-release:
@@ -13,7 +13,7 @@ jobs:
       NAME: MapHero
       NAME_LOWER: maphero
       URL: maphero.io
-      VERSION: 0.0.1  # Default version, will be updated dynamically
+      VERSION: 0.0.1
       TEAMID: 68DUZ3F2NM
       IOS_DIR: platform/ios
 
@@ -29,20 +29,6 @@ jobs:
           export PATH="$HOME/bin:$PATH"
           echo "Bazel version: $(bazel --version)"
 
-      - name: Cache Node.js
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/node
-          key: ${{ runner.os }}-node-${{ hashFiles('**/node_modules/**') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20.x'
-
       - name: Fetch Latest Release Version
         id: get_latest_version
         run: |
@@ -53,16 +39,12 @@ jobs:
       - name: Calculate New Version
         id: calculate_version
         run: |
-          # Extract version components
           latest_version=${{ env.latest_version }}
           echo "Current version is $latest_version"
-
-          # Remove 'v' prefix and increment the patch version
           current_version=${latest_version#v}
           IFS='.' read -r major minor patch <<< "$current_version"
           patch=$((patch+1))
           new_version="v$major.$minor.$patch"
-
           echo "New version is $new_version"
           echo "VERSION=$new_version" >> $GITHUB_ENV
 
@@ -73,38 +55,26 @@ jobs:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          # create variables
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-      
-          # import certificate and provisioning profile from secrets
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-      
-          # create temporary keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-      
-          # import certificate to keychain
           security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
-      
-          # apply provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
-      
-          # Verify the provisioning profile is installed correctly
           security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision
 
       - name: Build iOS App
         run: |
-          bazel build --verbose_failures //platform/ios:App
+          bazel build //platform/ios:App
 
       - name: Build MapHeroApp Swift
         run: |
-          bazel build --verbose_failures //platform/ios/app-swift:MapHeroApp
+          bazel build //platform/ios/app-swift:MapHeroApp
 
       - name: Build MapHero dynamic framework with optimization
         run: |
@@ -116,9 +86,9 @@ jobs:
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Automatically provided by GitHub Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.VERSION }}  # Tag for the release
+          tag_name: ${{ env.VERSION }}
           release_name: ${{ env.NAME }} ${{ env.VERSION }}
           body: "Release for ${{ env.NAME }} version ${{ env.VERSION }}"
           draft: false
@@ -128,7 +98,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: maphero-build
-          path: bazel-bin/platform/ios/  # Adjust  to point to the correct build output location
+          path: bazel-bin/platform/ios/
 
       - name: Zip dSYM Files
         run: |
