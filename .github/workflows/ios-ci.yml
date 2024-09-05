@@ -16,6 +16,7 @@ jobs:
       NAME: MapHero
       NAME_LOWER: maphero
       URL: maphero.io
+      latest_version: 0.0.1
       TEAMID: 68DUZ3F2NM
       IOS_DIR: platform/ios
 
@@ -34,21 +35,26 @@ jobs:
       - name: Fetch Latest Release Version
         id: get_latest_version
         run: |
-          latest_version=$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo "v0.0.0")
+          latest_version=$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo "v0.0.1")
           echo "Latest version: $latest_version"
           echo "latest_version=$latest_version" >> $GITHUB_ENV
 
       - name: Calculate New Version
         id: calculate_version
         run: |
+          # Extract version components
           latest_version=${{ env.latest_version }}
           echo "Current version is $latest_version"
+      
+          # Remove 'v' prefix and increment the patch version
           current_version=${latest_version#v}
           IFS='.' read -r major minor patch <<< "$current_version"
           patch=$((patch+1))
           new_version="v$major.$minor.$patch"
+      
           echo "New version is $new_version"
           echo "VERSION=$new_version" >> $GITHUB_ENV
+          echo "VERSION_LABEL=maphero_ios_${new_version#v}" >> $GITHUB_ENV
 
       - name: Install the Apple certificate and provisioning profile
         env:
