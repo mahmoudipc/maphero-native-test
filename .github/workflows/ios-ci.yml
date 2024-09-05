@@ -125,12 +125,16 @@ jobs:
           cd bazel-bin/platform/ios
           zip -r MapHero-${{ env.VERSION }}-dSYM.zip MapHero.dynamic_dsyms/*.dSYM
 
+      - name: See all bazel-bin/platform/ios files 
+        run: |
+          ls -al bazel-bin/platform/ios/
+
       - name: Upload dSYM Files
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: bazel-bin/platform/ios/MapHero.dynamic_dsyms/MapHero-${{ env.VERSION }}-dSYM.zip
+          asset_path: bazel-bin/platform/ios/MapHero-${{ env.VERSION }}-dSYM.zip
           asset_name: MapHero-${{ env.VERSION }}-dSYM.zip
           asset_content_type: application/zip
