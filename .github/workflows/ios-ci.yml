@@ -50,11 +50,13 @@ jobs:
           current_version=${latest_version#v}
           IFS='.' read -r major minor patch <<< "$current_version"
           patch=$((patch+1))
-          new_version="v$major.$minor.$patch"
+          new_version="$major.$minor.$patch"
       
           echo "New version is $new_version"
+          
+          # Set the new version to the env.VERSION
           echo "VERSION=$new_version" >> $GITHUB_ENV
-          echo "VERSION_LABEL=maphero_ios_${new_version#v}" >> $GITHUB_ENV
+          echo "VERSION_LABEL=maphero_ios_${new_version}" >> $GITHUB_ENV
 
       - name: Install the Apple certificate and provisioning profile
         env:
