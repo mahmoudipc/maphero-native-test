@@ -16,7 +16,7 @@ jobs:
       NAME: MapHero
       NAME_LOWER: maphero
       URL: maphero.io
-      VERSION: 0.0.3
+      VERSION: 0.0.4
       TEAMID: 68DUZ3F2NM
       IOS_DIR: platform/ios
 
@@ -153,4 +153,5 @@ jobs:
           asset_content_type: application/zip
 
       - name: Clean up temp files after upload
-        run: rm -rf /tmp/*
+        run: |
+          sudo rm -rf /tmp/*
