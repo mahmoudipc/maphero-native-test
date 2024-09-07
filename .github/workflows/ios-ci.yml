@@ -115,6 +115,17 @@ jobs:
       - name: Check disk space after build
         run: df -h
 
+      - name: Clean up Bazel Cache After Build
+        run: bazel clean --expunge
+
+      - name: Remove Additional Bazel Output Directories (if needed)
+        run: |
+          sudo rm -rf ~/Library/Caches/bazel
+          sudo rm -rf /private/var/tmp/_bazel_$USER
+
+      - name: Check disk space after removing Bazel output directories
+        run: df -h
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
