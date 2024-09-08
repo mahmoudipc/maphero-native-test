@@ -56,7 +56,6 @@ jobs:
       #     IFS='.' read -r major minor patch <<< "$current_version"
       #     patch=$((patch+1))
       #     new_version="$major.$minor.$patch"
-      
       #     echo "New version is $new_version"
           
       #     # Set the new version to the env.VERSION
