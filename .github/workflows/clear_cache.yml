@@ -1,4 +1,4 @@
-name: ios-ci
+name: clear_cache
 
 on:
   push:
