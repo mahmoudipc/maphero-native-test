@@ -112,20 +112,6 @@ jobs:
            --apple_generate_dsym --output_groups=+dsyms --//:renderer=metal //platform/ios:MapHero.dynamic \
            --embed_label="maphero_ios_${{ env.VERSION }}"
 
-      - name: Check disk space after build
-        run: df -h
-
-      - name: Clean up Bazel Cache After Build
-        run: bazel clean --expunge
-
-      - name: Remove Additional Bazel Output Directories (if needed)
-        run: |
-          sudo rm -rf ~/Library/Caches/bazel
-          sudo rm -rf /private/var/tmp/_bazel_$USER
-
-      - name: Check disk space after removing Bazel output directories
-        run: df -h
-
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -163,6 +149,20 @@ jobs:
           asset_name: MapHero-${{ env.VERSION }}-dSYM.zip
           asset_content_type: application/zip
 
-      - name: Clean up temp files after upload
-        run: |
-          sudo rm -rf /tmp/*
+      # - name: Check disk space after build
+      #   run: df -h
+
+      # - name: Clean up Bazel Cache After Build
+      #   run: bazel clean --expunge
+
+      # - name: Remove Additional Bazel Output Directories (if needed)
+      #   run: |
+      #     sudo rm -rf ~/Library/Caches/bazel
+      #     sudo rm -rf /private/var/tmp/_bazel_$USER
+
+      # - name: Check disk space after removing Bazel output directories
+      #   run: df -h
+
+      # - name: Clean up temp files after upload
+      #   run: |
+      #     sudo rm -rf /tmp/*
