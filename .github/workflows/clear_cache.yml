@@ -12,18 +12,7 @@ jobs:
   build-and-release:
     runs-on: macos-latest
 
-    env:
-      NAME: MapHero
-      NAME_LOWER: maphero
-      URL: maphero.io
-      VERSION: 0.0.5
-      TEAMID: 68DUZ3F2NM
-      IOS_DIR: platform/ios
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
-
       - name: Check initial disk space
         run: df -h
 

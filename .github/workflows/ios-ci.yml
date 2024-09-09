@@ -83,7 +83,7 @@ jobs:
 
       - name: Build MapHeroApp Swift
         run: |
-          bazel build //platform/ios/app-swift:MapHeroApp
+          bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
 
       - name: Build MapHero dynamic framework with optimization
         run: |
