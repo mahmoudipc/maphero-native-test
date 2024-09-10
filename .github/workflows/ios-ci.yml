@@ -62,7 +62,7 @@ jobs:
   ios-build:
     # needs: pre_job
     # if: needs.pre_job.outputs.should_skip != 'true'
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: macos-latest
     concurrency:
       # cancel jobs on PRs only
       group: ${{ github.workflow }}-${{ github.ref }}
