@@ -1,64 +1,67 @@
 name: ios-ci
 
 on:
+  push:
+    branches:
+      - main
   # workflow_run:
   #   workflows: ["clear_cache"]
   #   types:
   #     - completed
-  workflow_dispatch:
-    inputs:
-      release:
-        type: choice
-        default: no
-        options:
-          - full
-          - pre
-          - no
-        description: Whether to make a release, choose full release (uses platform/ios/VERSION) or pre-release
-      pre_release_version:
-        type: string
-        default: ''
-        description: Version (only for pre-releases)
-  push:
-    branches:
-      - main
-      - ios-*.*.x
-    tags:
-      - 'ios-*'
+  # workflow_dispatch:
+  #   inputs:
+  #     release:
+  #       type: choice
+  #       default: no
+  #       options:
+  #         - full
+  #         - pre
+  #         - no
+  #       description: Whether to make a release, choose full release (uses platform/ios/VERSION) or pre-release
+  #     pre_release_version:
+  #       type: string
+  #       default: ''
+  #       description: Version (only for pre-releases)
+  # push:
+  #   branches:
+  #     - main
+  #     - ios-*.*.x
+  #   tags:
+  #     - 'ios-*'
   
-  pull_request:
-    branches:
-      - '*'
+  # pull_request:
+  #   branches:
+  #     - '*'
 
 permissions:
   contents: write         # allow making a release
 
 jobs:
-  pre_job:
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ github.event_name != 'workflow_dispatch' && steps.changed-files-yaml.outputs.ios_any_modified != 'true' }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+  # pre_job:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     should_skip: ${{ github.event_name != 'workflow_dispatch' && steps.changed-files-yaml.outputs.ios_any_modified != 'true' }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
 
-      - name: Get all iOS files that have changed
-        if: github.event_name != 'workflow_dispatch'
-        id: changed-files-yaml
-        uses: tj-actions/changed-files@v44
-        with:
-          files_yaml_from_source_file: .github/changed-files.yml
+  #     - name: Get all iOS files that have changed
+  #       if: github.event_name != 'workflow_dispatch'
+  #       id: changed-files-yaml
+  #       uses: tj-actions/changed-files@v44
+  #       with:
+  #         files_yaml_from_source_file: .github/changed-files.yml
 
-      - name: Run step if test file(s) change
-        if: steps.changed-files-yaml.outputs.ios_any_modified == 'true'  
-        run: |
-          echo "One or more iOS file(s) has changed."
-          echo "List of changes: ${{ steps.changed-files-yaml.outputs.ios_all_changed_files }}"
+  #     - name: Run step if test file(s) change
+  #       if: steps.changed-files-yaml.outputs.ios_any_modified == 'true'  
+  #       run: |
+  #         echo "One or more iOS file(s) has changed."
+  #         echo "List of changes: ${{ steps.changed-files-yaml.outputs.ios_all_changed_files }}"
       
   ios-build:
-    needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true'
+    # needs: pre_job
+    # if: needs.pre_job.outputs.should_skip != 'true'
     runs-on: [self-hosted, macOS, ARM64]
     concurrency:
       # cancel jobs on PRs only
