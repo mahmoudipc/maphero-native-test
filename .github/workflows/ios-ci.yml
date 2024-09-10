@@ -76,21 +76,49 @@ jobs:
       - name: Lint plist files
         run: bazel run //platform/ios:lint-plists --//:renderer=metal
 
-      - name: Build RenderTest .ipa and .xctest
+      # - name: Build RenderTest .ipa and .xctest
+      #   run: |
+      #     set -e
+      #     bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
+      #     build_dir="$(mktemp -d)"
+      #     xcodebuild build-for-testing  -scheme RenderTest -project MapHero.xcodeproj -derivedDataPath "$build_dir"
+      #     render_test_app_dir="$(dirname "$(find "$build_dir" -name RenderTestApp.app)")"
+      #     cd "$render_test_app_dir"
+      #     mkdir Payload
+      #     mv RenderTestApp.app Payload
+      #     zip -r RenderTestApp.zip Payload
+      #     mv RenderTestApp.zip RenderTestApp.ipa
+      #     cd Payload/RenderTestApp.app/PlugIns
+      #     zip -r "$render_test_app_dir"/RenderTest.xctest.zip RenderTest.xctest
+      #     echo render_test_artifacts_dir="$render_test_app_dir" >> "$GITHUB_ENV"
+          
+      - name: Build RenderTest .ipa
         run: |
           set -e
+          # Generate Xcode project using Bazel
           bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
+
+          # Create a temporary directory for build artifacts
           build_dir="$(mktemp -d)"
-          xcodebuild build-for-testing  -scheme RenderTest -project MapHero.xcodeproj -derivedDataPath "$build_dir"
-          render_test_app_dir="$(dirname "$(find "$build_dir" -name RenderTestApp.app)")"
-          cd "$render_test_app_dir"
-          mkdir Payload
-          mv RenderTestApp.app Payload
-          zip -r RenderTestApp.zip Payload
-          mv RenderTestApp.zip RenderTestApp.ipa
-          cd Payload/RenderTestApp.app/PlugIns
-          zip -r "$render_test_app_dir"/RenderTest.xctest.zip RenderTest.xctest
-          echo render_test_artifacts_dir="$render_test_app_dir" >> "$GITHUB_ENV"
+
+          # Build the app using xcodebuild for the Release configuration
+          xcodebuild -scheme RenderTest \
+            -project MapHero.xcodeproj \
+            -configuration Release \
+            -archivePath "$build_dir/RenderTestApp.xcarchive" \
+            archive
+
+          # Export the .ipa file from the archived build
+          xcodebuild -exportArchive \
+            -archivePath "$build_dir/RenderTestApp.xcarchive" \
+            -exportPath "$build_dir" \
+            -exportOptionsPlist ExportOptions.plist
+
+          # Move the .ipa file to the desired directory
+          mv "$build_dir/RenderTestApp.ipa" .
+
+          # Output directory for environment variable (optional, if needed)
+          echo render_test_artifacts_dir="$build_dir" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
