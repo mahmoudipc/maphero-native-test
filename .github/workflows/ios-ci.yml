@@ -1,145 +1,232 @@
 name: ios-ci
 
 on:
-  workflow_run:
-    workflows: ["clear_cache"]
-    types:
-      - completed
+  # workflow_run:
+  #   workflows: ["clear_cache"]
+  #   types:
+  #     - completed
+  workflow_dispatch:
+    inputs:
+      release:
+        type: choice
+        default: no
+        options:
+          - full
+          - pre
+          - no
+        description: Whether to make a release, choose full release (uses platform/ios/VERSION) or pre-release
+      pre_release_version:
+        type: string
+        default: ''
+        description: Version (only for pre-releases)
+  push:
+    branches:
+      - main
+      - ios-*.*.x
+    tags:
+      - 'ios-*'
+  
+  pull_request:
+    branches:
+      - '*'
 
 permissions:
-  contents: write
+  contents: write         # allow making a release
 
 jobs:
-  build-and-release:
-    runs-on: macos-latest
-
-    env:
-      NAME: MapHero
-      NAME_LOWER: maphero
-      URL: maphero.io
-      VERSION: 0.0.6
-      TEAMID: 68DUZ3F2NM
-      IOS_DIR: platform/ios
-
+  pre_job:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ github.event_name != 'workflow_dispatch' && steps.changed-files-yaml.outputs.ios_any_modified != 'true' }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
-
-      - name: Check initial disk space
-        run: df -h
-
-      - name: Set up Bazel
-        run: |
-          curl -LO "https://github.com/bazelbuild/bazel/releases/download/7.3.1/bazel-7.3.1-installer-darwin-x86_64.sh"
-          chmod +x bazel-7.3.1-installer-darwin-x86_64.sh
-          ./bazel-7.3.1-installer-darwin-x86_64.sh --user
-          export PATH="$HOME/bin:$PATH"
-          echo "Bazel version: $(bazel --version)"
-
-      - name: Fetch Latest Release Version
-        id: get_latest_version
-        run: |
-          echo "A new version: ${{ env.VERSION }}"
-
-      - name: Install the Apple certificate and provisioning profile
-        env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
-          security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision
-
-      - name: Install Provisioning Profile
-        env:
-          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
-        run: |
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
-          security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision
-
-      - name: Clean up Bazel cache
-        run: bazel clean --expunge
-
-      - name: Check disk space after cleaning Bazel cache
-        run: df -h
-
-      - name: Build iOS App
-        run: |
-          bazel build //platform/ios:App
-
-      - name: Build MapHeroApp Swift
-        run: |
-          bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
-
-      - name: Build MapHero dynamic framework with optimization
-        run: |
-          bazel build --compilation_mode=opt --features=dead_strip,thin_lto --objc_enable_binary_stripping \
-           --apple_generate_dsym --output_groups=+dsyms --//:renderer=metal //platform/ios:MapHero.dynamic \
-           --embed_label="maphero_ios_${{ env.VERSION }}"
-
-      - name: Build Swift Package
-        run: |
-          cd ${{ env.IOS_DIR }}
-          swift build -c release
-          swift package archive-source --output ${{ env.NAME }}-Package-${{ env.VERSION }}.zip
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
         with:
-          tag_name: ${{ env.VERSION }}
-          release_name: ${{ env.NAME }} ${{ env.VERSION }}
-          body: "Release for ${{ env.NAME }} version ${{ env.VERSION }}"
-          draft: false
-          prerelease: false
+          submodules: recursive
 
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v3
+      - name: Get all iOS files that have changed
+        if: github.event_name != 'workflow_dispatch'
+        id: changed-files-yaml
+        uses: tj-actions/changed-files@v44
         with:
-          name: maphero-build
-          path: bazel-bin/platform/ios/
+          files_yaml_from_source_file: .github/changed-files.yml
 
-      - name: Zip dSYM Files
+      - name: Run step if test file(s) change
+        if: steps.changed-files-yaml.outputs.ios_any_modified == 'true'  
         run: |
-          cd bazel-bin/platform/ios
-          zip -r MapHero-${{ env.VERSION }}-dSYM.zip MapHero.dynamic_dsyms/*.dSYM
+          echo "One or more iOS file(s) has changed."
+          echo "List of changes: ${{ steps.changed-files-yaml.outputs.ios_all_changed_files }}"
+      
+  ios-build:
+    needs: pre_job
+    if: needs.pre_job.outputs.should_skip != 'true'
+    runs-on: [self-hosted, macOS, ARM64]
+    concurrency:
+      # cancel jobs on PRs only
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+    env:
+      BUILDTYPE: Debug
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    defaults:
+      run:
+        working-directory: platform/ios
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-      - name: See all bazel-bin/platform/ios files 
+      - name: Cache Bazel
+        uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel') }}
+          restore-keys: |
+            ${{ runner.os }}-bazel-
+          path: ~/.cache/bazel
+
+      - name: Build Example (Swift) App
+        run: bazel build //platform/ios/app-swift:MapLibreApp --//:renderer=metal
+
+      - name: Check debug symbols
+        run: bazel run //platform:check-public-symbols --//:renderer=metal
+
+      - name: Lint plist files
+        run: bazel run //platform/ios:lint-plists --//:renderer=metal
+
+      - name: Running iOS tests
+        run: bazel test //platform/ios/test:ios_test --test_output=errors --//:renderer=metal
+
+      - name: Running iOS UI tests (Address+UB Sanitizer)
+        run: bazel test //platform/ios/iosapp-UITests:uitest --test_output=errors --//:renderer=metal --features=include_clang_rt --copt=-fsanitize=undefined --linkopt=-fsanitize=undefined --copt=-fsanitize-recover=null --linkopt=-fsanitize-recover=null
+
+      # render test
+
+      - name: Build RenderTest .ipa and .xctest
         run: |
-          ls -al bazel-bin/platform/ios/
+          set -e
+          bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
+          build_dir="$(mktemp -d)"
+          xcodebuild build-for-testing  -scheme RenderTest -project MapLibre.xcodeproj -derivedDataPath "$build_dir"
+          render_test_app_dir="$(dirname "$(find "$build_dir" -name RenderTestApp.app)")"
+          cd "$render_test_app_dir"
+          mkdir Payload
+          mv RenderTestApp.app Payload
+          zip -r RenderTestApp.zip Payload
+          mv RenderTestApp.zip RenderTestApp.ipa
+          cd Payload/RenderTestApp.app/PlugIns
+          zip -r "$render_test_app_dir"/RenderTest.xctest.zip RenderTest.xctest
+          echo render_test_artifacts_dir="$render_test_app_dir" >> "$GITHUB_ENV"
 
-      - name: Upload dSYM Files
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: bazel-bin/platform/ios/MapHero-${{ env.VERSION }}-dSYM.zip
-          asset_name: MapHero-${{ env.VERSION }}-dSYM.zip
-          asset_content_type: application/zip
+          name: ios-render-test
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            ${{ env.render_test_artifacts_dir }}/RenderTest.xctest.zip
+            ${{ env.render_test_artifacts_dir }}/RenderTestApp.ipa
 
-      - name: Upload Swift Package
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # C++ unit tests
+      
+      - name: Build CppUnitTests .ipa and .xctest
+        run: |
+          set -e
+          bazel run --//:renderer=metal //platform/ios:xcodeproj
+          build_dir="$(mktemp -d)"
+          xcodebuild build-for-testing  -scheme CppUnitTests -project MapLibre.xcodeproj -derivedDataPath "$build_dir"
+          ios_cpp_test_app_dir="$(dirname "$(find "$build_dir" -name CppUnitTestsApp.app)")"
+          cd "$ios_cpp_test_app_dir"
+          mkdir Payload
+          mv CppUnitTestsApp.app Payload
+          zip -r CppUnitTestsApp.zip Payload
+          mv CppUnitTestsApp.zip CppUnitTestsApp.ipa
+          cd Payload/CppUnitTestsApp.app/PlugIns
+          zip -r "$ios_cpp_test_app_dir"/CppUnitTests.xctest.zip CppUnitTests.xctest
+          echo ios_cpp_test_artifacts_dir="$ios_cpp_test_app_dir" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.IOS_DIR }}/${{ env.NAME }}-Package-${{ env.VERSION }}.zip
-          asset_name: ${{ env.NAME }}-Package-${{ env.VERSION }}.zip
-          asset_content_type: application/zip
+          name: ios-cpp-unit-tests
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTests.xctest.zip
+            ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTestsApp.ipa
+
+      # Size test (Bloaty)
+
+      - name: Build dynamic library for size test (Bloaty)
+        run: |
+          bazel build //platform/ios:MapLibre.dynamic --//:renderer=metal --compilation_mode="opt" --copt -g --copt="-Oz" --strip never --output_groups=+dsyms --apple_generate_dsym
+          bazel_bin="$(bazel info --compilation_mode="opt" bazel-bin)"
+          unzip "$bazel_bin"/platform/ios/MapLibre.dynamic.xcframework.zip
+          cp "$bazel_bin"/platform/ios/MapLibre.dynamic_dsyms/MapLibre_ios_device.framework.dSYM/Contents/Resources/DWARF/MapLibre_ios_device MapLibre_DWARF
+          cp MapLibre.xcframework/ios-arm64/MapLibre.framework/MapLibre MapLibre_dynamic
+
+      - name: Upload size test as artifact (Bloaty)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-size-test-files
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            platform/ios/MapLibre_DWARF
+            platform/ios/MapLibre_dynamic
+
+      - name: Build DocC documentation
+        working-directory: .
+        run: |
+          HOSTING_BASE_PATH="maplibre-native/ios/latest" platform/ios/scripts/docc.sh
+
+      - name: Deploy DocC documentation (main) 🚀
+        if: github.ref == 'refs/heads/main'
+        uses: JamesIves/github-pages-deploy-action@v4.6.3
+        with:
+          branch: gh-pages
+          folder: build/docs
+          target-folder: ios/latest/
+
+  ios-release:
+    runs-on: macos-14
+    needs: ios-build
+    if: github.ref == 'refs/heads/main' || github.event.inputs.release == 'pre'
+    defaults:
+      run:
+        working-directory: platform/ios
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: VERSION file changed
+        id: version-file-ios-changed
+        uses: tj-actions/changed-files@v44
+        with:
+          files: platform/ios/VERSION
+
+      # Make Metal XCFramework release
+      - name: Should make release?
+        if: |
+          github.event.inputs.release == 'full' || github.event.inputs.release == 'pre' ||
+          (github.event_name == 'push' && steps.version-file-ios-changed.outputs.any_changed == 'true')
+        run: |
+          echo "Prepare version for release"
+          mkdir -p build/ios/MapLibre/
+          cp -r platform/ios/MapLibre.xcframework build/ios/MapLibre/
+          echo "Full version"
+          if [ "${{ github.event.inputs.release }}" == "full" ]; then
+            build_version=$(< platform/ios/VERSION)
+            xcrun altool --upload-app --type ios --file build/ios/MapLibre.xcframework.zip --username ${{ secrets.APP_STORE_CONNECT_USERNAME }} --password ${{ secrets.APP_STORE_CONNECT_PASSWORD }}
+          fi
+          
+      - name: Upload version artifact
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'pre'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-pre-release-artifact
+          path: build/ios/MapLibre.xcframework.zip
