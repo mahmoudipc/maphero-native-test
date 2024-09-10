@@ -76,28 +76,38 @@ jobs:
       - name: Lint plist files
         run: bazel run //platform/ios:lint-plists --//:renderer=metal
 
-      # - name: Build RenderTest .ipa and .xctest
-      #   run: |
-      #     set -e
-      #     bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
-      #     build_dir="$(mktemp -d)"
-      #     xcodebuild build-for-testing  -scheme RenderTest -project MapHero.xcodeproj -derivedDataPath "$build_dir"
-      #     render_test_app_dir="$(dirname "$(find "$build_dir" -name RenderTestApp.app)")"
-      #     cd "$render_test_app_dir"
-      #     mkdir Payload
-      #     mv RenderTestApp.app Payload
-      #     zip -r RenderTestApp.zip Payload
-      #     mv RenderTestApp.zip RenderTestApp.ipa
-      #     cd Payload/RenderTestApp.app/PlugIns
-      #     zip -r "$render_test_app_dir"/RenderTest.xctest.zip RenderTest.xctest
-      #     echo render_test_artifacts_dir="$render_test_app_dir" >> "$GITHUB_ENV"
-          
-      - name: Build RenderTest .ipa
+      - name: Generate Xcode Project and Modify Scheme
         run: |
           set -e
           # Generate Xcode project using Bazel
           bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
 
+          # Define the scheme path
+          PROJECT_PATH="MapHero.xcodeproj"
+          SCHEME_NAME="RenderTest"
+          SCHEME_PATH="$PROJECT_PATH/xcshareddata/xcschemes/$SCHEME_NAME.xcscheme"
+
+          # Check if the scheme file exists
+          if [ ! -f "$SCHEME_PATH" ]; then
+              echo "Error: Scheme file $SCHEME_PATH not found."
+              exit 1
+          fi
+
+          # Add ArchiveAction to the scheme if not present
+          if ! grep -q "<ArchiveAction" "$SCHEME_PATH"; then
+              echo "Adding ArchiveAction to $SCHEME_PATH..."
+              sed -i '' '/<\/TestAction>/a\
+              \  <ArchiveAction buildConfiguration = "Release" revealArchiveInOrganizer = "YES">\
+              \    <BuildableReference BuildableIdentifier = "primary" BlueprintIdentifier = "YOUR_TARGET_IDENTIFIER" BuildableName = "RenderTestApp.app" BlueprintName = "RenderTestApp" ReferencedContainer = "container:MapHero.xcodeproj"/>\
+              \  </ArchiveAction>' "$SCHEME_PATH"
+              echo "ArchiveAction added successfully."
+          else
+              echo "ArchiveAction is already configured."
+          fi
+
+      - name: Build RenderTest .ipa
+        run: |
+          set -e
           # Create a temporary directory for build artifacts
           build_dir="$(mktemp -d)"
 
