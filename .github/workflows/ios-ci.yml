@@ -92,33 +92,33 @@ jobs:
       #     zip -r "$render_test_app_dir"/RenderTest.xctest.zip RenderTest.xctest
       #     echo render_test_artifacts_dir="$render_test_app_dir" >> "$GITHUB_ENV"
           
-      - name: Build RenderTest .ipa
-        run: |
-          set -e
-          # Generate Xcode project using Bazel
-          bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
+    - name: Build RenderTest .ipa
+      run: |
+        set -e
+        # Generate Xcode project using Bazel
+        bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
 
-          # Create a temporary directory for build artifacts
-          build_dir="$(mktemp -d)"
+        # Create a temporary directory for build artifacts
+        build_dir="$(mktemp -d)"
 
-          # Build the app using xcodebuild for the Release configuration
-          xcodebuild -scheme RenderTest \
-            -project MapHero.xcodeproj \
-            -configuration Release \
-            -archivePath "$build_dir/RenderTestApp.xcarchive" \
-            archive
+        # Build the app using xcodebuild for the Release configuration
+        xcodebuild -scheme RenderTest \
+          -project MapHero.xcodeproj \
+          -configuration Release \
+          -archivePath "$build_dir/RenderTestApp.xcarchive" \
+          archive
 
-          # Export the .ipa file from the archived build
-          xcodebuild -exportArchive \
-            -archivePath "$build_dir/RenderTestApp.xcarchive" \
-            -exportPath "$build_dir" \
-            -exportOptionsPlist ExportOptions.plist
+        # Export the .ipa file from the archived build
+        xcodebuild -exportArchive \
+          -archivePath "$build_dir/RenderTestApp.xcarchive" \
+          -exportPath "$build_dir" \
+          -exportOptionsPlist ExportOptions.plist
 
-          # Move the .ipa file to the desired directory
-          mv "$build_dir/RenderTestApp.ipa" .
+        # Move the .ipa file to the desired directory
+        mv "$build_dir/RenderTestApp.ipa" .
 
-          # Output directory for environment variable (optional, if needed)
-          echo render_test_artifacts_dir="$build_dir" >> "$GITHUB_ENV"
+        # Output directory for environment variable (optional, if needed)
+        echo render_test_artifacts_dir="$build_dir" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
