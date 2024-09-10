@@ -96,10 +96,12 @@ jobs:
           # Add ArchiveAction to the scheme if not present
           if ! grep -q "<ArchiveAction" "$SCHEME_PATH"; then
               echo "Adding ArchiveAction to $SCHEME_PATH..."
-              sed -i '' '/<\/TestAction>/a\
-              \  <ArchiveAction buildConfiguration = "Release" revealArchiveInOrganizer = "YES">\
-              \    <BuildableReference BuildableIdentifier = "primary" BlueprintIdentifier = "YOUR_TARGET_IDENTIFIER" BuildableName = "RenderTestApp.app" BlueprintName = "RenderTestApp" ReferencedContainer = "container:MapHero.xcodeproj"/>\
-              \  </ArchiveAction>' "$SCHEME_PATH"
+              
+              # Insert the ArchiveAction after TestAction closing tag
+              awk '/<\/TestAction>/{print; print "  <ArchiveAction buildConfiguration=\"Release\" revealArchiveInOrganizer=\"YES\">\
+                  <BuildableReference BuildableIdentifier=\"primary\" BlueprintIdentifier=\"YOUR_TARGET_IDENTIFIER\" BuildableName=\"RenderTestApp.app\" BlueprintName=\"RenderTestApp\" ReferencedContainer=\"container:MapHero.xcodeproj\"/>\
+                </ArchiveAction>"; next}1' "$SCHEME_PATH" > tmp && mv tmp "$SCHEME_PATH"
+                
               echo "ArchiveAction added successfully."
           else
               echo "ArchiveAction is already configured."
