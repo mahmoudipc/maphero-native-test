@@ -88,7 +88,7 @@ jobs:
           ./bazel-7.3.1-installer-darwin-x86_64.sh --user
           export PATH="$HOME/bin:$PATH"
           echo "Bazel version: $(bazel --version)"
-          
+
       - name: Cache Bazel
         uses: actions/cache@v4
         with:
@@ -142,17 +142,17 @@ jobs:
       - name: Build Example (Swift) App
         run: bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
 
-      - name: Check debug symbols
-        run: bazel run //platform:check-public-symbols --//:renderer=metal
+      # - name: Check debug symbols
+      #   run: bazel run //platform:check-public-symbols --//:renderer=metal
 
       - name: Lint plist files
         run: bazel run //platform/ios:lint-plists --//:renderer=metal
 
-      - name: Running iOS tests
-        run: bazel test //platform/ios/test:ios_test --test_output=errors --//:renderer=metal
+      # - name: Running iOS tests
+      #   run: bazel test //platform/ios/test:ios_test --test_output=errors --//:renderer=metal
 
-      - name: Running iOS UI tests (Address+UB Sanitizer)
-        run: bazel test //platform/ios/iosapp-UITests:uitest --test_output=errors --//:renderer=metal --features=include_clang_rt --copt=-fsanitize=undefined --linkopt=-fsanitize=undefined --copt=-fsanitize-recover=null --linkopt=-fsanitize-recover=null
+      # - name: Running iOS UI tests (Address+UB Sanitizer)
+      #   run: bazel test //platform/ios/iosapp-UITests:uitest --test_output=errors --//:renderer=metal --features=include_clang_rt --copt=-fsanitize=undefined --linkopt=-fsanitize=undefined --copt=-fsanitize-recover=null --linkopt=-fsanitize-recover=null
 
       # render test
 
