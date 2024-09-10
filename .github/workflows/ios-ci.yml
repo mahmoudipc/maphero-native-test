@@ -90,7 +90,7 @@ jobs:
           path: ~/.cache/bazel
 
       - name: Build Example (Swift) App
-        run: bazel build //platform/ios/app-swift:MapLibreApp --//:renderer=metal
+        run: bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
 
       - name: Check debug symbols
         run: bazel run //platform:check-public-symbols --//:renderer=metal
@@ -111,7 +111,7 @@ jobs:
           set -e
           bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
           build_dir="$(mktemp -d)"
-          xcodebuild build-for-testing  -scheme RenderTest -project MapLibre.xcodeproj -derivedDataPath "$build_dir"
+          xcodebuild build-for-testing  -scheme RenderTest -project MapHero.xcodeproj -derivedDataPath "$build_dir"
           render_test_app_dir="$(dirname "$(find "$build_dir" -name RenderTestApp.app)")"
           cd "$render_test_app_dir"
           mkdir Payload
@@ -138,7 +138,7 @@ jobs:
           set -e
           bazel run --//:renderer=metal //platform/ios:xcodeproj
           build_dir="$(mktemp -d)"
-          xcodebuild build-for-testing  -scheme CppUnitTests -project MapLibre.xcodeproj -derivedDataPath "$build_dir"
+          xcodebuild build-for-testing  -scheme CppUnitTests -project MapHero.xcodeproj -derivedDataPath "$build_dir"
           ios_cpp_test_app_dir="$(dirname "$(find "$build_dir" -name CppUnitTestsApp.app)")"
           cd "$ios_cpp_test_app_dir"
           mkdir Payload
@@ -162,11 +162,11 @@ jobs:
 
       - name: Build dynamic library for size test (Bloaty)
         run: |
-          bazel build //platform/ios:MapLibre.dynamic --//:renderer=metal --compilation_mode="opt" --copt -g --copt="-Oz" --strip never --output_groups=+dsyms --apple_generate_dsym
+          bazel build //platform/ios:MapHero.dynamic --//:renderer=metal --compilation_mode="opt" --copt -g --copt="-Oz" --strip never --output_groups=+dsyms --apple_generate_dsym
           bazel_bin="$(bazel info --compilation_mode="opt" bazel-bin)"
-          unzip "$bazel_bin"/platform/ios/MapLibre.dynamic.xcframework.zip
-          cp "$bazel_bin"/platform/ios/MapLibre.dynamic_dsyms/MapLibre_ios_device.framework.dSYM/Contents/Resources/DWARF/MapLibre_ios_device MapLibre_DWARF
-          cp MapLibre.xcframework/ios-arm64/MapLibre.framework/MapLibre MapLibre_dynamic
+          unzip "$bazel_bin"/platform/ios/MapHero.dynamic.xcframework.zip
+          cp "$bazel_bin"/platform/ios/MapHero.dynamic_dsyms/MapHero_ios_device.framework.dSYM/Contents/Resources/DWARF/MapHero_ios_device MapHero_DWARF
+          cp MapHero.xcframework/ios-arm64/MapHero.framework/MapHero MapHero_dynamic
 
       - name: Upload size test as artifact (Bloaty)
         if: github.event_name == 'pull_request'
@@ -176,13 +176,13 @@ jobs:
           retention-days: 3
           if-no-files-found: error
           path: |
-            platform/ios/MapLibre_DWARF
-            platform/ios/MapLibre_dynamic
+            platform/ios/MapHero_DWARF
+            platform/ios/MapHero_dynamic
 
       - name: Build DocC documentation
         working-directory: .
         run: |
-          HOSTING_BASE_PATH="maplibre-native/ios/latest" platform/ios/scripts/docc.sh
+          HOSTING_BASE_PATH="maphero-native/ios/latest" platform/ios/scripts/docc.sh
 
       - name: Deploy DocC documentation (main) 🚀
         if: github.ref == 'refs/heads/main'
@@ -219,12 +219,12 @@ jobs:
           (github.event_name == 'push' && steps.version-file-ios-changed.outputs.any_changed == 'true')
         run: |
           echo "Prepare version for release"
-          mkdir -p build/ios/MapLibre/
-          cp -r platform/ios/MapLibre.xcframework build/ios/MapLibre/
+          mkdir -p build/ios/MapHero/
+          cp -r platform/ios/MapHero.xcframework build/ios/MapHero/
           echo "Full version"
           if [ "${{ github.event.inputs.release }}" == "full" ]; then
             build_version=$(< platform/ios/VERSION)
-            xcrun altool --upload-app --type ios --file build/ios/MapLibre.xcframework.zip --username ${{ secrets.APP_STORE_CONNECT_USERNAME }} --password ${{ secrets.APP_STORE_CONNECT_PASSWORD }}
+            xcrun altool --upload-app --type ios --file build/ios/MapHero.xcframework.zip --username ${{ secrets.APP_STORE_CONNECT_USERNAME }} --password ${{ secrets.APP_STORE_CONNECT_PASSWORD }}
           fi
           
       - name: Upload version artifact
@@ -232,4 +232,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-pre-release-artifact
-          path: build/ios/MapLibre.xcframework.zip
+          path: build/ios/MapHero.xcframework.zip
