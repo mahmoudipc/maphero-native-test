@@ -1,6 +1,3 @@
-Thank you for the clarification! I'll adjust the code so that every step contains either a `uses` or `run` key as required. Here is the corrected version:
-
-```yaml
 name: ios-ci
 
 on:
@@ -206,6 +203,3 @@ jobs:
             platform/ios/MapHero.zip
           draft: false
           prerelease: false
-```
-
-In this corrected version, every step has either a `uses` or `run` key, ensuring compatibility with the GitHub Actions requirements.
