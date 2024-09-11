@@ -142,14 +142,14 @@ jobs:
       #     zip -r "$ios_cpp_test_app_dir"/CppUnitTests.xctest.zip CppUnitTests.xctest
       #     echo ios_cpp_test_artifacts_dir="$ios_cpp_test_app_dir" >> "$GITHUB_ENV"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ios-cpp-unit-tests
-          retention-days: 3
-          if-no-files-found: error
-          path: |
-            # ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTests.xctest.zip
-            ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTestsApp.ipa
+      # - uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ios-cpp-unit-tests
+      #     retention-days: 3
+      #     if-no-files-found: error
+      #     path: |
+      #       # ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTests.xctest.zip
+      #       ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTestsApp.ipa
 
   ios-release:
     runs-on: macos-14
