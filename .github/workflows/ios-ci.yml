@@ -82,6 +82,10 @@ jobs:
           # Generate Xcode project using Bazel
           bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
 
+          if [ -f "MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme" ]; then
+              rm -f MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme
+          fi
+          
           # Check if RenderTest.xcscheme exists
           if [ -f "MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme" ]; then
               echo "Error: RenderTest.xcscheme should be removed."
