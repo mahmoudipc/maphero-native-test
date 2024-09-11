@@ -2,12 +2,12 @@ name: ios-ci
 
 on:
   workflow_run:
-    workflows: ["clear_cache"]
+    workflows: ["clear_cache"]  # Name of the workflow that triggers this
     types:
       - completed
 
 permissions:
-  contents: write
+  contents: write  # Grants write permissions for contents (required for creating releases)
 
 jobs:
   build-and-release:
@@ -17,7 +17,7 @@ jobs:
       NAME: MapHero
       NAME_LOWER: maphero
       URL: maphero.io
-      VERSION: 0.0.7
+      VERSION: 0.0.5
       TEAMID: 68DUZ3F2NM
       IOS_DIR: platform/ios
 
@@ -39,8 +39,29 @@ jobs:
       - name: Fetch Latest Release Version
         id: get_latest_version
         run: |
+          # latest_version=$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo "v0.0.1")
+          # echo "Latest version: $latest_version"
+          # echo "latest_version=$latest_version" >> $GITHUB_ENV
           echo "A new version: ${{ env.VERSION }}"
 
+      # - name: Calculate New Version
+      #   id: calculate_version
+      #   run: |
+      #     # Extract version components
+      #     latest_version=${{ env.latest_version }}
+      #     echo "Current version is $latest_version"
+      
+      #     # Remove 'v' prefix and increment the patch version
+      #     current_version=${latest_version#v}
+      #     IFS='.' read -r major minor patch <<< "$current_version"
+      #     patch=$((patch+1))
+      #     new_version="$major.$minor.$patch"
+      #     echo "New version is $new_version"
+          
+      #     # Set the new version to the env.VERSION
+      #     echo "VERSION=$new_version" >> $GITHUB_ENV
+      #     echo "VERSION_LABEL=maphero_ios_${new_version}" >> $GITHUB_ENV
+        
       - name: Install the Apple certificate and provisioning profile
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -83,19 +104,13 @@ jobs:
 
       - name: Build MapHeroApp Swift
         run: |
-          bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
+          bazel build //platform/ios/app-swift:MapHeroApp
 
       - name: Build MapHero dynamic framework with optimization
         run: |
           bazel build --compilation_mode=opt --features=dead_strip,thin_lto --objc_enable_binary_stripping \
            --apple_generate_dsym --output_groups=+dsyms --//:renderer=metal //platform/ios:MapHero.dynamic \
            --embed_label="maphero_ios_${{ env.VERSION }}"
-
-      - name: Build Swift Package
-        run: |
-          cd ${{ env.IOS_DIR }}
-          swift build -c release
-          swift package archive-source --output ${{ env.NAME }}-Package-${{ env.VERSION }}.zip
 
       - name: Create Release
         id: create_release
@@ -132,14 +147,4 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: bazel-bin/platform/ios/MapHero-${{ env.VERSION }}-dSYM.zip
           asset_name: MapHero-${{ env.VERSION }}-dSYM.zip
-          asset_content_type: application/zip
-
-      - name: Upload Swift Package
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.IOS_DIR }}/${{ env.NAME }}-Package-${{ env.VERSION }}.zip
-          asset_name: ${{ env.NAME }}-Package-${{ env.VERSION }}.zip
           asset_content_type: application/zip
