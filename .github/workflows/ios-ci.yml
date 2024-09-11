@@ -93,19 +93,21 @@ jobs:
               exit 1
           fi
 
-          # Add ArchiveAction to the scheme if not present
-          if ! grep -q "<ArchiveAction" "$SCHEME_PATH"; then
-              echo "Adding ArchiveAction to $SCHEME_PATH..."
-              
-              # Insert the ArchiveAction after TestAction closing tag
-              awk '/<\/TestAction>/{print; print "  <ArchiveAction buildConfiguration=\"Release\" revealArchiveInOrganizer=\"YES\">\
-                  <BuildableReference BuildableIdentifier=\"primary\" BlueprintIdentifier=\"YOUR_TARGET_IDENTIFIER\" BuildableName=\"RenderTestApp.app\" BlueprintName=\"RenderTestApp\" ReferencedContainer=\"container:MapHero.xcodeproj\"/>\
-                </ArchiveAction>"; next}1' "$SCHEME_PATH" > tmp && mv tmp "$SCHEME_PATH"
-                
-              echo "ArchiveAction added successfully."
-          else
-              echo "ArchiveAction is already configured."
-          fi
+          # Backup the original scheme file
+          cp "$SCHEME_PATH" "$SCHEME_PATH.bak"
+
+          # Use PlistBuddy to add ArchiveAction to the scheme
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction dict" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:buildConfiguration string 'Release'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:revealArchiveInOrganizer bool true" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference dict" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BuildableIdentifier string 'primary'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BlueprintIdentifier string 'YOUR_TARGET_IDENTIFIER'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BuildableName string 'RenderTestApp.app'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BlueprintName string 'RenderTestApp'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:ReferencedContainer string 'container:MapHero.xcodeproj'" "$SCHEME_PATH"
+
+          echo "ArchiveAction added successfully."
 
       - name: Build RenderTest .ipa
         run: |
