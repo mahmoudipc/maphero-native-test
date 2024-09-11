@@ -148,7 +148,7 @@ jobs:
           retention-days: 3
           if-no-files-found: error
           path: |
-            ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTests.xctest.zip
+            # ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTests.xctest.zip
             ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTestsApp.ipa
 
   ios-release:
