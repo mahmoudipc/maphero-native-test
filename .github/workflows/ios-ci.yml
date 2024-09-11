@@ -69,7 +69,13 @@ jobs:
 
       - name: Check disk space after cleaning Bazel cache
         run: df -h
-        
+
+      - name: Build Example (Swift) App
+        run: bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
+
+      - name: Lint plist files
+        run: bazel run //platform/ios:lint-plists --//:renderer=metal
+
       - name: Generate Xcode Project
         run: |
           set -e
@@ -81,49 +87,6 @@ jobs:
               echo "Error: RenderTest.xcscheme should be removed."
               exit 1
           fi
-
-      - name: Build Example (Swift) App
-        run: bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
-
-      - name: Lint plist files
-        run: bazel run //platform/ios:lint-plists --//:renderer=metal
-
-      - name: Generate Xcode Project and Modify Scheme
-        run: |
-          set -e
-          # Generate Xcode project using Bazel
-          bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
-
-          # Define the scheme path
-          PROJECT_PATH="MapHero.xcodeproj"
-          SCHEME_NAME="RenderTest"
-          SCHEME_PATH="$PROJECT_PATH/xcshareddata/xcschemes/$SCHEME_NAME.xcscheme"
-
-          # Check if the scheme file exists
-          if [ ! -f "$SCHEME_PATH" ]; then
-              echo "Error: Scheme file $SCHEME_PATH not found."
-              exit 1
-          fi
-
-          # Backup the original scheme file
-          cp "$SCHEME_PATH" "$SCHEME_PATH.bak"
-
-          # Use PlistBuddy to add ArchiveAction to the scheme
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction dict" "$SCHEME_PATH"
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:buildConfiguration string 'Release'" "$SCHEME_PATH"
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:revealArchiveInOrganizer bool true" "$SCHEME_PATH"
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference dict" "$SCHEME_PATH"
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BuildableIdentifier string 'primary'" "$SCHEME_PATH"
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BlueprintIdentifier string 'YOUR_TARGET_IDENTIFIER'" "$SCHEME_PATH"
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BuildableName string 'RenderTestApp.app'" "$SCHEME_PATH"
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BlueprintName string 'RenderTestApp'" "$SCHEME_PATH"
-          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:ReferencedContainer string 'container:MapHero.xcodeproj'" "$SCHEME_PATH"
-
-          echo "ArchiveAction added successfully."
-
-      - name: Check .xcscheme File Validity
-        run: |
-          python3 scripts/check_xcscheme.py MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme
 
       - name: Build RenderTest .ipa
         run: |
@@ -156,7 +119,6 @@ jobs:
           retention-days: 3
           if-no-files-found: error
           path: |
-            ${{ env.render_test_artifacts_dir }}/RenderTest.xctest.zip
             ${{ env.render_test_artifacts_dir }}/RenderTestApp.ipa
 
       - name: Build CppUnitTests .ipa and .xctest
