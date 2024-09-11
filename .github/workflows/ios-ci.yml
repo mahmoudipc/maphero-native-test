@@ -1,3 +1,6 @@
+Thank you for the clarification! I'll adjust the code so that every step contains either a `uses` or `run` key as required. Here is the corrected version:
+
+```yaml
 name: ios-ci
 
 on:
@@ -96,47 +99,16 @@ jobs:
           # Backup the original scheme file
           cp "$SCHEME_PATH" "$SCHEME_PATH.bak"
 
-          # Recreate .xcscheme file with correct structure
-          cat <<EOF > "$SCHEME_PATH"
-          <?xml version="1.0" encoding="UTF-8"?>
-          <Scheme
-             LastUpgradeVersion = "1230"
-             version = "1.7">
-             <BuildAction
-                parallelizeBuildables = "YES"
-                buildImplicitDependencies = "YES">
-                <!-- BuildableReference Section -->
-             </BuildAction>
-             <TestAction
-                buildConfiguration = "Debug"
-                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-                shouldUseLaunchSchemeArgsEnv = "YES">
-                <!-- Testables Section -->
-             </TestAction>
-             <LaunchAction
-                buildConfiguration = "Debug"
-                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-                launchStyle = "0"
-                useCustomWorkingDirectory = "NO">
-                <!-- BuildableReference Section -->
-             </LaunchAction>
-             <ProfileAction
-                buildConfiguration = "Release"
-                shouldUseLaunchSchemeArgsEnv = "YES">
-                <!-- BuildableReference Section -->
-             </ProfileAction>
-             <AnalyzeAction
-                buildConfiguration = "Debug">
-             </AnalyzeAction>
-             <ArchiveAction
-                buildConfiguration = "Release"
-                revealArchiveInOrganizer = "YES">
-                <!-- BuildableReference Section -->
-             </ArchiveAction>
-          </Scheme>
-          EOF
+          # Use PlistBuddy to add ArchiveAction to the scheme
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction dict" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:buildConfiguration string 'Release'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:revealArchiveInOrganizer bool true" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference dict" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BuildableIdentifier string 'primary'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BlueprintIdentifier string 'YOUR_TARGET_IDENTIFIER'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BuildableName string 'RenderTestApp.app'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:BlueprintName string 'RenderTestApp'" "$SCHEME_PATH"
+          /usr/libexec/PlistBuddy -c "Add :ArchiveAction:BuildableReference:ReferencedContainer string 'container:MapHero.xcodeproj'" "$SCHEME_PATH"
 
           echo "ArchiveAction added successfully."
 
@@ -221,4 +193,19 @@ jobs:
 
       - name: Make Metal XCFramework release
         if: steps.version-file-ios-changed.outputs.any_changed == 'true'
-       
+        run: |
+          echo "Prepare version for release"
+          mkdir -p build/ios/MapHero/
+          cp -r platform/ios/MapHero.xcodeproj build/ios/MapHero/MapHero.xcodeproj
+
+      - name: Upload Release Asset
+        if: steps.version-file-ios-changed.outputs.any_changed == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            platform/ios/MapHero.zip
+          draft: false
+          prerelease: false
+```
+
+In this corrected version, every step has either a `uses` or `run` key, ensuring compatibility with the GitHub Actions requirements.
