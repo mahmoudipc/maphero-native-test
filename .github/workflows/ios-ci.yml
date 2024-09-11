@@ -1,32 +1,32 @@
 name: ios-ci
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["clear_cache"]
+    types:
+      - completed
 
 permissions:
   contents: write
 
 jobs:
-  ios-build:
+  build-and-release:
     runs-on: macos-latest
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
     env:
-      BUILDTYPE: Debug
-      HOMEBREW_NO_AUTO_UPDATE: 1
-      HOMEBREW_NO_INSTALL_CLEANUP: 1
-    defaults:
-      run:
-        working-directory: platform/ios
-        shell: bash
+      NAME: MapHero
+      NAME_LOWER: maphero
+      URL: maphero.io
+      VERSION: 0.0.7
+      TEAMID: 68DUZ3F2NM
+      IOS_DIR: platform/ios
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Check initial disk space
+        run: df -h
 
       - name: Set up Bazel
         run: |
@@ -36,15 +36,12 @@ jobs:
           export PATH="$HOME/bin:$PATH"
           echo "Bazel version: $(bazel --version)"
 
-      - name: Cache Bazel
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/bazel
-          key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-
+      - name: Fetch Latest Release Version
+        id: get_latest_version
+        run: |
+          echo "A new version: ${{ env.VERSION }}"
 
-      - name: Install Apple Certificates and Profiles
+      - name: Install the Apple certificate and provisioning profile
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
@@ -64,59 +61,85 @@ jobs:
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
           security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision
 
+      - name: Install Provisioning Profile
+        env:
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+        run: |
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision
+
       - name: Clean up Bazel cache
         run: bazel clean --expunge
 
       - name: Check disk space after cleaning Bazel cache
         run: df -h
 
-      - name: Build Example (Swift) App
-        run: bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
-
-      - name: Lint plist files
-        run: bazel run //platform/ios:lint-plists --//:renderer=metal
-
-      - name: Generate Xcode Project
+      - name: Build iOS App
         run: |
-          set -e
-          # Generate Xcode project using Bazel
-          bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
+          bazel build //platform/ios:App
 
-          # Remove RenderTest.xcscheme if it exists
-          if [ -f "MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme" ]; then
-              rm -f MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme
-          fi
-
-          # Check if RenderTest.xcscheme exists
-          if [ -f "MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme" ]; then
-              echo "Error: RenderTest.xcscheme should be removed."
-              exit 1
-          fi
-
-  ios-release:
-    runs-on: macos-14
-    needs: ios-build
-    if: github.ref == 'refs/heads/main'
-    defaults:
-      run:
-        working-directory: platform/ios
-        shell: bash
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Make Metal XCFramework release
+      - name: Build MapHeroApp Swift
         run: |
-          echo "Prepare version for release"
-          mkdir -p build/ios/MapHero/
-          cp -r platform/ios/MapHero.xcodeproj build/ios/MapHero/MapHero.xcodeproj
+          bazel build //platform/ios/app-swift:MapHeroApp --//:renderer=metal
 
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v1
+      - name: Build MapHero dynamic framework with optimization
+        run: |
+          bazel build --compilation_mode=opt --features=dead_strip,thin_lto --objc_enable_binary_stripping \
+           --apple_generate_dsym --output_groups=+dsyms --//:renderer=metal //platform/ios:MapHero.dynamic \
+           --embed_label="maphero_ios_${{ env.VERSION }}"
+
+      - name: Build Swift Package
+        run: |
+          cd ${{ env.IOS_DIR }}
+          swift build -c release
+          swift package archive-source --output ${{ env.NAME }}-Package-${{ env.VERSION }}.zip
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: |
-            platform/ios/MapHero.zip
+          tag_name: ${{ env.VERSION }}
+          release_name: ${{ env.NAME }} ${{ env.VERSION }}
+          body: "Release for ${{ env.NAME }} version ${{ env.VERSION }}"
           draft: false
           prerelease: false
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: maphero-build
+          path: bazel-bin/platform/ios/
+
+      - name: Zip dSYM Files
+        run: |
+          cd bazel-bin/platform/ios
+          zip -r MapHero-${{ env.VERSION }}-dSYM.zip MapHero.dynamic_dsyms/*.dSYM
+
+      - name: See all bazel-bin/platform/ios files 
+        run: |
+          ls -al bazel-bin/platform/ios/
+
+      - name: Upload dSYM Files
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: bazel-bin/platform/ios/MapHero-${{ env.VERSION }}-dSYM.zip
+          asset_name: MapHero-${{ env.VERSION }}-dSYM.zip
+          asset_content_type: application/zip
+
+      - name: Upload Swift Package
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ env.IOS_DIR }}/${{ env.NAME }}-Package-${{ env.VERSION }}.zip
+          asset_name: ${{ env.NAME }}-Package-${{ env.VERSION }}.zip
+          asset_content_type: application/zip
