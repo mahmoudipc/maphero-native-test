@@ -109,6 +109,10 @@ jobs:
 
           echo "ArchiveAction added successfully."
 
+      - name: Check .xcscheme File Validity
+        run: |
+          python3 scripts/check_xcscheme.py MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme
+
       - name: Build RenderTest .ipa
         run: |
           set -e
