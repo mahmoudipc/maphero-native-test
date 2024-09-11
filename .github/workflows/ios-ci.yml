@@ -39,10 +39,10 @@ jobs:
       - name: Cache Bazel
         uses: actions/cache@v4
         with:
+          path: ~/.cache/bazel
           key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel') }}
           restore-keys: |
             ${{ runner.os }}-bazel-
-          path: ~/.cache/bazel
 
       - name: Install Apple Certificates and Profiles
         env:
@@ -82,6 +82,7 @@ jobs:
           # Generate Xcode project using Bazel
           bazel run //platform/ios:xcodeproj --@rules_xcodeproj//xcodeproj:extra_common_flags="--//:renderer=metal"
 
+          # Remove RenderTest.xcscheme if it exists
           if [ -f "MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme" ]; then
               rm -f MapHero.xcodeproj/xcshareddata/xcschemes/RenderTest.xcscheme
           fi
@@ -92,70 +93,10 @@ jobs:
               exit 1
           fi
 
-
-      # - name: Build RenderTest .ipa
-      #   run: |
-      #     set -e
-      #     # Create a temporary directory for build artifacts
-      #     build_dir="$(mktemp -d)"
-
-      #     # Build the app using xcodebuild for the Release configuration
-      #     xcodebuild -scheme RenderTest \
-      #       -project MapHero.xcodeproj \
-      #       -configuration Release \
-      #       -archivePath "$build_dir/RenderTestApp.xcarchive" \
-      #       archive
-
-      #     # Export the .ipa file from the archived build
-      #     xcodebuild -exportArchive \
-      #       -archivePath "$build_dir/RenderTestApp.xcarchive" \
-      #       -exportPath "$build_dir" \
-      #       -exportOptionsPlist ExportOptions.plist
-
-      #     # Move the .ipa file to the desired directory
-      #     mv "$build_dir/RenderTestApp.ipa" .
-
-      #     # Output directory for environment variable (optional, if needed)
-      #     echo render_test_artifacts_dir="$build_dir" >> "$GITHUB_ENV"
-
-      # - uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ios-render-test
-      #     retention-days: 3
-      #     if-no-files-found: error
-      #     path: |
-      #       ${{ env.render_test_artifacts_dir }}/RenderTestApp.ipa
-
-      # - name: Build CppUnitTests .ipa and .xctest
-      #   run: |
-      #     set -e
-      #     bazel run --//:renderer=metal //platform/ios:xcodeproj
-      #     build_dir="$(mktemp -d)"
-      #     xcodebuild build-for-testing  -scheme CppUnitTests -project MapHero.xcodeproj -derivedDataPath "$build_dir"
-      #     ios_cpp_test_app_dir="$(dirname "$(find "$build_dir" -name CppUnitTestsApp.app)")"
-      #     cd "$ios_cpp_test_app_dir"
-      #     mkdir Payload
-      #     mv CppUnitTestsApp.app Payload
-      #     zip -r CppUnitTestsApp.zip Payload
-      #     mv CppUnitTestsApp.zip CppUnitTestsApp.ipa
-      #     cd Payload/CppUnitTestsApp.app/PlugIns
-      #     zip -r "$ios_cpp_test_app_dir"/CppUnitTests.xctest.zip CppUnitTests.xctest
-      #     echo ios_cpp_test_artifacts_dir="$ios_cpp_test_app_dir" >> "$GITHUB_ENV"
-
-
-      # - uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ios-cpp-unit-tests
-      #     retention-days: 3
-      #     if-no-files-found: error
-      #     path: |
-      #       # ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTests.xctest.zip
-      #       ${{ env.ios_cpp_test_artifacts_dir }}/CppUnitTestsApp.ipa
-
   ios-release:
     runs-on: macos-14
     needs: ios-build
-    # if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: platform/ios
@@ -167,20 +108,20 @@ jobs:
           fetch-depth: 0
 
       - name: VERSION file changed
-        # id: version-file-ios-changed
+        id: version-file-ios-changed
         uses: tj-actions/changed-files@v44
         with:
           files: platform/ios/VERSION
 
       - name: Make Metal XCFramework release
-        # if: steps.version-file-ios-changed.outputs.any_changed == 'true'
+        if: steps.version-file-ios-changed.outputs.any_changed == 'true'
         run: |
           echo "Prepare version for release"
           mkdir -p build/ios/MapHero/
           cp -r platform/ios/MapHero.xcodeproj build/ios/MapHero/MapHero.xcodeproj
 
       - name: Upload Release Asset
-        # if: steps.version-file-ios-changed.outputs.any_changed == 'true'
+        if: steps.version-file-ios-changed.outputs.any_changed == 'true'
         uses: softprops/action-gh-release@v1
         with:
           files: |
