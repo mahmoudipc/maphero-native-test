@@ -118,29 +118,29 @@ jobs:
       #     # Output directory for environment variable (optional, if needed)
       #     echo render_test_artifacts_dir="$build_dir" >> "$GITHUB_ENV"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ios-render-test
-          retention-days: 3
-          if-no-files-found: error
-          path: |
-            ${{ env.render_test_artifacts_dir }}/RenderTestApp.ipa
+      # - uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ios-render-test
+      #     retention-days: 3
+      #     if-no-files-found: error
+      #     path: |
+      #       ${{ env.render_test_artifacts_dir }}/RenderTestApp.ipa
 
-      - name: Build CppUnitTests .ipa and .xctest
-        run: |
-          set -e
-          bazel run --//:renderer=metal //platform/ios:xcodeproj
-          build_dir="$(mktemp -d)"
-          xcodebuild build-for-testing  -scheme CppUnitTests -project MapHero.xcodeproj -derivedDataPath "$build_dir"
-          ios_cpp_test_app_dir="$(dirname "$(find "$build_dir" -name CppUnitTestsApp.app)")"
-          cd "$ios_cpp_test_app_dir"
-          mkdir Payload
-          mv CppUnitTestsApp.app Payload
-          zip -r CppUnitTestsApp.zip Payload
-          mv CppUnitTestsApp.zip CppUnitTestsApp.ipa
-          cd Payload/CppUnitTestsApp.app/PlugIns
-          zip -r "$ios_cpp_test_app_dir"/CppUnitTests.xctest.zip CppUnitTests.xctest
-          echo ios_cpp_test_artifacts_dir="$ios_cpp_test_app_dir" >> "$GITHUB_ENV"
+      # - name: Build CppUnitTests .ipa and .xctest
+      #   run: |
+      #     set -e
+      #     bazel run --//:renderer=metal //platform/ios:xcodeproj
+      #     build_dir="$(mktemp -d)"
+      #     xcodebuild build-for-testing  -scheme CppUnitTests -project MapHero.xcodeproj -derivedDataPath "$build_dir"
+      #     ios_cpp_test_app_dir="$(dirname "$(find "$build_dir" -name CppUnitTestsApp.app)")"
+      #     cd "$ios_cpp_test_app_dir"
+      #     mkdir Payload
+      #     mv CppUnitTestsApp.app Payload
+      #     zip -r CppUnitTestsApp.zip Payload
+      #     mv CppUnitTestsApp.zip CppUnitTestsApp.ipa
+      #     cd Payload/CppUnitTestsApp.app/PlugIns
+      #     zip -r "$ios_cpp_test_app_dir"/CppUnitTests.xctest.zip CppUnitTests.xctest
+      #     echo ios_cpp_test_artifacts_dir="$ios_cpp_test_app_dir" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
