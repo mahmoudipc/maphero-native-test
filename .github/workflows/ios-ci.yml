@@ -86,13 +86,29 @@ jobs:
            --apple_generate_dsym --output_groups=+dsyms --//:renderer=metal //platform/ios:MapHero.dynamic \
            --embed_label="maphero_ios_${{ env.VERSION }}"
 
+      - name: List files in directory
+        run: |
+          cd bazel-bin/platform/ios
+          ls -al
+
       # Step to compute checksum for XCFramework
       - name: Compute Checksum for XCFramework
         run: |
           cd bazel-bin/platform/ios
-          zip -r MapHero.dynamic.xcframework.zip MapHero.xcframework
-          CHECKSUM=$(swift package compute-checksum MapHero.xcframework.zip)
+          # Use the correct file name for the .xcframework
+          XCFRAMEWORK_NAME="MapHero.dynamic.xcframework"
+          XCFRAMEWORK_ZIP="${XCFRAMEWORK_NAME}.zip"
+
+          # Zip the XCFramework
+          zip -r "$XCFRAMEWORK_ZIP" "$XCFRAMEWORK_NAME"
+
+          # Compute checksum of the zip file
+          CHECKSUM=$(swift package compute-checksum "$XCFRAMEWORK_ZIP")
+
+          # Output checksum for debugging
           echo "Checksum: $CHECKSUM"
+
+          # Set the checksum in GitHub environment variable
           echo "XCFRAMEWORK_CHECKSUM=$CHECKSUM" >> $GITHUB_ENV
 
       - name: Create Release
