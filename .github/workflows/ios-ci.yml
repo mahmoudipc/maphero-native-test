@@ -96,14 +96,11 @@ jobs:
       - name: Compute Checksum for XCFramework
         run: |
           cd bazel-bin/platform/ios
-          # Use the correct file name for the .xcframework
-          XCFRAMEWORK_NAME="MapHero.dynamic.xcframework"
-          XCFRAMEWORK_ZIP="${XCFRAMEWORK_NAME}.zip"
-
-          # Zip the XCFramework
-          zip -r "$XCFRAMEWORK_ZIP" "$XCFRAMEWORK_NAME"
-
-          # Compute checksum of the zip file
+          
+          # Define the zipped XCFramework file
+          XCFRAMEWORK_ZIP="MapHero.dynamic.xcframework.zip"
+          
+          # Compute checksum of the existing zip file
           CHECKSUM=$(swift package compute-checksum "$XCFRAMEWORK_ZIP")
 
           # Output checksum for debugging
